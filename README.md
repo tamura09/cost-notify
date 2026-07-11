@@ -12,8 +12,8 @@ Each function is an independent Go module built for `provided.al2023` / `arm64`.
 
 ## CI/CD
 
-[.github/workflows/build.yml](.github/workflows/build.yml) tests every function on pull requests and pushes to `main`. On push to `main`, it also builds each function's `bootstrap` binary, zips it, and uploads the artifact to the Lambda artifact S3 bucket that `tamura09/aws-terraform` reads from (`s3://aws-terraform-lambda-artifacts-<account_id>-us-east-1/lambda/<function>.zip`).
+[.github/workflows/build.yml](.github/workflows/build.yml) tests every function on pull requests and pushes to `main`. On push to `main`, it also builds each function's `bootstrap` binary, zips it, uploads the artifact to the Lambda artifact S3 bucket that `tamura09/aws-terraform` reads from (`s3://aws-terraform-lambda-artifacts-<account_id>-us-east-1/lambda/<function>.zip`), and immediately calls `aws lambda update-function-code` so the deployed Lambda runs the new code right away.
 
-Uploads authenticate via GitHub OIDC, assuming the `github-actions-lambda-artifacts` IAM role defined in `tamura09/aws-terraform`.
+AWS calls authenticate via GitHub OIDC, assuming the `github-actions-lambda-artifacts` IAM role defined in `tamura09/aws-terraform` (scoped to S3 upload + `lambda:UpdateFunctionCode` on these specific functions).
 
-Terraform in `tamura09/aws-terraform` still owns the AWS resources (Lambda function, IAM role, EventBridge schedule, CloudWatch log group); this repository only owns the function source and its build/upload pipeline.
+Terraform in `tamura09/aws-terraform` still owns the AWS resources (Lambda function, IAM role, EventBridge schedule, CloudWatch log group) and will converge to the same S3 object version on its next apply; this repository only owns the function source and its build/deploy pipeline.

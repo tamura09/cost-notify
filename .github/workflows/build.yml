@@ -99,3 +99,12 @@ jobs:
         run: |
           aws s3 cp "${{ matrix.function }}.zip" \
             "s3://aws-terraform-lambda-artifacts-${AWS_ACCOUNT_ID}-us-east-1/lambda/${{ matrix.function }}.zip"
+
+      - name: Deploy Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ matrix.function }}" \
+            --s3-bucket "aws-terraform-lambda-artifacts-${AWS_ACCOUNT_ID}-us-east-1" \
+            --s3-key "lambda/${{ matrix.function }}.zip" \
+            --no-cli-pager
+          aws lambda wait function-updated --function-name "${{ matrix.function }}"
