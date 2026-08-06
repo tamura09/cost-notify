@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -69,6 +70,107 @@ func TestRecurringCostProratesMonthlyOnlyPrice(t *testing.T) {
 	}
 	if cost != 15 {
 		t.Fatalf("cost = %.2f, want 15.00", cost)
+	}
+}
+
+func TestAddServerItemsUsesLocationField(t *testing.T) {
+	var servers []serverResource
+	if err := json.Unmarshal([]byte(`[{
+		"id": 1,
+		"name": "web",
+		"created": "2026-05-01T00:00:00Z",
+		"server_type": {"name": "cpx11"},
+		"location": {"name": "ash"},
+		"backup_window": null
+	}]`), &servers); err != nil {
+		t.Fatalf("decode servers: %v", err)
+	}
+
+	catalog := priceCatalog{
+		Currency: "USD",
+		ServerTypes: map[string][]locationPrice{
+			"cpx11": {
+				{Location: "fsn1", PriceHourly: &amount{Net: "0.0082"}, PriceMonthly: &amount{Net: "5.99"}},
+				{Location: "ash", PriceHourly: &amount{Net: "0.0281"}, PriceMonthly: &amount{Net: "20.49"}},
+			},
+		},
+	}
+	report := projectReport{}
+	addServerItems(&report, catalog, testPeriod(), servers)
+
+	if len(report.Warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none", report.Warnings)
+	}
+	if len(report.Items) != 1 {
+		t.Fatalf("item count = %d, want 1", len(report.Items))
+	}
+	if got, want := report.Items[0].Location, "ash"; got != want {
+		t.Fatalf("item location = %q, want %q", got, want)
+	}
+	if got, want := report.Items[0].Cost, 20.49; got != want {
+		t.Fatalf("cost = %.2f, want %.2f", got, want)
+	}
+}
+
+func TestAddPrimaryIPItemsUsesLocationFieldAndSkipsIPv6(t *testing.T) {
+	var primaryIPs []primaryIPResource
+	if err := json.Unmarshal([]byte(`[
+		{"id": 1, "name": "ip-v4", "ip": "203.0.113.1", "created": "2026-05-01T00:00:00Z", "type": "ipv4", "location": {"name": "hel1"}},
+		{"id": 2, "name": "ip-v6", "ip": "2001:db8::/64", "created": "2026-05-01T00:00:00Z", "type": "ipv6", "location": {"name": "hel1"}}
+	]`), &primaryIPs); err != nil {
+		t.Fatalf("decode primary IPs: %v", err)
+	}
+
+	catalog := priceCatalog{
+		Currency: "USD",
+		PrimaryIPs: map[string][]locationPrice{
+			"ipv4": {
+				{Location: "fsn1", PriceHourly: &amount{Net: "0.001"}, PriceMonthly: &amount{Net: "0.60"}},
+				{Location: "hel1", PriceHourly: &amount{Net: "0.001"}, PriceMonthly: &amount{Net: "0.60"}},
+			},
+		},
+	}
+	report := projectReport{}
+	addPrimaryIPItems(&report, catalog, testPeriod(), primaryIPs)
+
+	if len(report.Warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none", report.Warnings)
+	}
+	if len(report.Items) != 1 {
+		t.Fatalf("item count = %d, want 1", len(report.Items))
+	}
+	if got, want := report.Items[0].Location, "hel1"; got != want {
+		t.Fatalf("item location = %q, want %q", got, want)
+	}
+}
+
+func TestPriceForLocationDoesNotGuessBetweenDifferentPrices(t *testing.T) {
+	prices := []locationPrice{
+		{Location: "fsn1", PriceMonthly: &amount{Net: "5.99"}},
+		{Location: "ash", PriceMonthly: &amount{Net: "20.49"}},
+	}
+	if _, ok := priceForLocation(prices, ""); ok {
+		t.Fatal("priceForLocation returned a price for an unknown location")
+	}
+
+	uniform := []locationPrice{
+		{Location: "fsn1", PriceMonthly: &amount{Net: "0.60"}},
+		{Location: "ash", PriceMonthly: &amount{Net: "0.60"}},
+	}
+	price, ok := priceForLocation(uniform, "")
+	if !ok {
+		t.Fatal("priceForLocation returned ok=false for uniform prices")
+	}
+	if got, want := price.PriceMonthly.Net, "0.60"; got != want {
+		t.Fatalf("price = %q, want %q", got, want)
+	}
+}
+
+func testPeriod() billingPeriod {
+	return billingPeriod{
+		Start:        time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		End:          time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		LocationName: "UTC",
 	}
 }
 
