@@ -192,17 +192,13 @@ type locationRef struct {
 	Name string `json:"name"`
 }
 
-type datacenterRef struct {
-	Location locationRef `json:"location"`
-}
-
 type serverResource struct {
-	ID           int64         `json:"id"`
-	Name         string        `json:"name"`
-	Created      time.Time     `json:"created"`
-	ServerType   namedRef      `json:"server_type"`
-	Datacenter   datacenterRef `json:"datacenter"`
-	BackupWindow *string       `json:"backup_window"`
+	ID           int64       `json:"id"`
+	Name         string      `json:"name"`
+	Created      time.Time   `json:"created"`
+	ServerType   namedRef    `json:"server_type"`
+	Location     locationRef `json:"location"`
+	BackupWindow *string     `json:"backup_window"`
 }
 
 type volumeResource struct {
@@ -223,12 +219,12 @@ type floatingIPResource struct {
 }
 
 type primaryIPResource struct {
-	ID         int64         `json:"id"`
-	Name       string        `json:"name"`
-	IP         string        `json:"ip"`
-	Created    time.Time     `json:"created"`
-	Type       string        `json:"type"`
-	Datacenter datacenterRef `json:"datacenter"`
+	ID       int64       `json:"id"`
+	Name     string      `json:"name"`
+	IP       string      `json:"ip"`
+	Created  time.Time   `json:"created"`
+	Type     string      `json:"type"`
+	Location locationRef `json:"location"`
 }
 
 type loadBalancerResource struct {
@@ -605,7 +601,7 @@ func addServerItems(report *projectReport, catalog priceCatalog, period billingP
 		if hours <= 0 {
 			continue
 		}
-		location := server.Datacenter.Location.Name
+		location := server.Location.Name
 		price, ok, err := catalog.recurring(catalog.ServerTypes, server.ServerType.Name, location)
 		if err != nil {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("server %s: %v", resourceLabel(server.Name, server.ID), err))
@@ -691,11 +687,15 @@ func addFloatingIPItems(report *projectReport, catalog priceCatalog, period bill
 
 func addPrimaryIPItems(report *projectReport, catalog priceCatalog, period billingPeriod, primaryIPs []primaryIPResource) {
 	for _, primaryIP := range primaryIPs {
+		// Primary IPv6 addresses are free and carry no pricing entry.
+		if strings.EqualFold(primaryIP.Type, "ipv6") {
+			continue
+		}
 		hours := activeHours(primaryIP.Created, period)
 		if hours <= 0 {
 			continue
 		}
-		location := primaryIP.Datacenter.Location.Name
+		location := primaryIP.Location.Name
 		price, ok, err := catalog.recurring(catalog.PrimaryIPs, primaryIP.Type, location)
 		if err != nil {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("primary IP %s: %v", resourceLabel(ipName(primaryIP.Name, primaryIP.IP), primaryIP.ID), err))
@@ -853,10 +853,35 @@ func priceForLocation(prices []locationPrice, location string) (locationPrice, b
 			return price, true
 		}
 	}
-	if location == "" && len(prices) > 0 {
+	// Without a location the first entry is only safe to use when every location
+	// charges the same. Picking an arbitrary entry would silently report the
+	// price of another location, which is how the removal of the `datacenter`
+	// response field went unnoticed.
+	if location == "" && len(prices) > 0 && sameEverywhere(prices) {
 		return prices[0], true
 	}
 	return locationPrice{}, false
+}
+
+func sameEverywhere(prices []locationPrice) bool {
+	for _, price := range prices[1:] {
+		if !samePrice(price.PriceHourly, prices[0].PriceHourly) || !samePrice(price.PriceMonthly, prices[0].PriceMonthly) {
+			return false
+		}
+	}
+	return true
+}
+
+func samePrice(left, right *amount) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	leftValue, leftErr := left.value()
+	rightValue, rightErr := right.value()
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	return leftValue == rightValue
 }
 
 func previousMonth(now time.Time, location *time.Location) billingPeriod {
