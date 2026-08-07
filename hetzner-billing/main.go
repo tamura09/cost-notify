@@ -293,7 +293,7 @@ func (a *app) handle(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("load report timezone %q: %w", locationName, err)
 	}
-	period := previousMonth(a.now().In(reportLocation), reportLocation)
+	period := currentMonth(a.now().In(reportLocation), reportLocation)
 
 	baseURL := envOr("HETZNER_API_BASE_URL", defaultHetznerAPIBaseURL)
 	reports := make([]projectReport, 0, len(projects))
@@ -884,12 +884,17 @@ func samePrice(left, right *amount) bool {
 	return leftValue == rightValue
 }
 
-func previousMonth(now time.Time, location *time.Location) billingPeriod {
-	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, location)
-	previousMonthStart := currentMonthStart.AddDate(0, -1, 0)
+// currentMonth reports the month that is still running. Prices come from the
+// live Hetzner pricing API, which only ever returns today's prices, so the run
+// has to happen inside the month it reports on: the EventBridge rule fires at
+// 23:59 on the last day of the month. Reporting the previous month instead
+// would price it with whatever Hetzner charges by then, and every price change
+// at a month boundary would land in the report as a wrong amount.
+func currentMonth(now time.Time, location *time.Location) billingPeriod {
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, location)
 	return billingPeriod{
-		Start:        previousMonthStart,
-		End:          currentMonthStart,
+		Start:        start,
+		End:          start.AddDate(0, 1, 0),
 		LocationName: location.String(),
 	}
 }
