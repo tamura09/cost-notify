@@ -41,15 +41,19 @@ func TestParseProjectTokensSupportsSingleRawToken(t *testing.T) {
 	}
 }
 
-func TestPreviousMonthUsesReportLocation(t *testing.T) {
+func TestCurrentMonthCoversTheRunningMonth(t *testing.T) {
 	location := time.FixedZone("JST", 9*60*60)
-	period := previousMonth(time.Date(2026, 6, 20, 12, 0, 0, 0, location), location)
+	// The schedule fires one minute before the month ends.
+	period := currentMonth(time.Date(2026, 6, 30, 23, 59, 0, 0, location), location)
 
-	if got, want := period.Start.Format(time.RFC3339), "2026-05-01T00:00:00+09:00"; got != want {
+	if got, want := period.Start.Format(time.RFC3339), "2026-06-01T00:00:00+09:00"; got != want {
 		t.Fatalf("period.Start = %s, want %s", got, want)
 	}
-	if got, want := period.End.Format(time.RFC3339), "2026-06-01T00:00:00+09:00"; got != want {
+	if got, want := period.End.Format(time.RFC3339), "2026-07-01T00:00:00+09:00"; got != want {
 		t.Fatalf("period.End = %s, want %s", got, want)
+	}
+	if got, want := periodHours(period), 720.0; got != want {
+		t.Fatalf("period hours = %.0f, want %.0f", got, want)
 	}
 }
 
