@@ -180,7 +180,7 @@ func testPeriod() billingPeriod {
 
 func TestBuildDiscordPayloadUsesEmbedsAndStaysWithinLimits(t *testing.T) {
 	items := make([]lineItem, 0, 200)
-	for index := 0; index < 200; index++ {
+	for index := range 200 {
 		items = append(items, lineItem{
 			Category: "server",
 			Name:     strings.Repeat("x", 20),

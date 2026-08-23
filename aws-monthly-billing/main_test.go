@@ -123,7 +123,7 @@ func TestCostReportFollowsNextPageToken(t *testing.T) {
 func TestBuildDiscordPayloadUsesEmbedsAndStaysWithinLimits(t *testing.T) {
 	usageLines := make([]usageLine, 0, 200)
 	serviceTotals := make([]serviceTotal, 0, 200)
-	for index := 0; index < 200; index++ {
+	for index := range 200 {
 		serviceName := "Service " + strings.Repeat("x", 30)
 		usageLines = append(usageLines, usageLine{
 			Service:     serviceName,
