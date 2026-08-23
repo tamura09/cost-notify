@@ -368,35 +368,35 @@ func (a *app) collectProject(ctx context.Context, baseURL string, project projec
 	}
 	report.Currency = catalog.Currency
 
-	servers, err := listAll[serverResource](ctx, client, "servers", "servers", nil)
+	servers, err := client.listAll[serverResource](ctx, "servers", "servers", nil)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("servers: %v", err))
 	} else {
 		addServerItems(&report, catalog, period, servers)
 	}
 
-	volumes, err := listAll[volumeResource](ctx, client, "volumes", "volumes", nil)
+	volumes, err := client.listAll[volumeResource](ctx, "volumes", "volumes", nil)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("volumes: %v", err))
 	} else {
 		addVolumeItems(&report, catalog, period, volumes)
 	}
 
-	floatingIPs, err := listAll[floatingIPResource](ctx, client, "floating_ips", "floating_ips", nil)
+	floatingIPs, err := client.listAll[floatingIPResource](ctx, "floating_ips", "floating_ips", nil)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("floating_ips: %v", err))
 	} else {
 		addFloatingIPItems(&report, catalog, period, floatingIPs)
 	}
 
-	primaryIPs, err := listAll[primaryIPResource](ctx, client, "primary_ips", "primary_ips", nil)
+	primaryIPs, err := client.listAll[primaryIPResource](ctx, "primary_ips", "primary_ips", nil)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("primary_ips: %v", err))
 	} else {
 		addPrimaryIPItems(&report, catalog, period, primaryIPs)
 	}
 
-	loadBalancers, err := listAll[loadBalancerResource](ctx, client, "load_balancers", "load_balancers", nil)
+	loadBalancers, err := client.listAll[loadBalancerResource](ctx, "load_balancers", "load_balancers", nil)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("load_balancers: %v", err))
 	} else {
@@ -405,7 +405,7 @@ func (a *app) collectProject(ctx context.Context, baseURL string, project projec
 
 	imageQuery := url.Values{}
 	imageQuery.Set("type", "snapshot")
-	images, err := listAll[imageResource](ctx, client, "images", "images", imageQuery)
+	images, err := client.listAll[imageResource](ctx, "images", "images", imageQuery)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("images: %v", err))
 	} else {
@@ -502,15 +502,22 @@ func (a *app) exchangeRate(ctx context.Context, baseCurrency string, quoteCurren
 	return conversion, nil
 }
 
-func listAll[T any](ctx context.Context, client hcloudClient, apiPath, root string, query url.Values) ([]T, error) {
+// listAll is a method rather than a package-scope function because it is
+// nothing but a paginating wrapper around getJSON, and belongs in the same
+// namespace. Go 1.27 lets a method declare its own type parameters, which is
+// what previously forced this out to package scope.
+func (c hcloudClient) listAll[T any](ctx context.Context, apiPath, root string, query url.Values) ([]T, error) {
 	var all []T
 	for page := 1; ; page++ {
-		pageQuery := cloneValues(query)
+		pageQuery := query.Clone()
+		if pageQuery == nil {
+			pageQuery = url.Values{}
+		}
 		pageQuery.Set("page", strconv.Itoa(page))
 		pageQuery.Set("per_page", "50")
 
 		var raw map[string]json.RawMessage
-		if err := client.getJSON(ctx, apiPath, pageQuery, &raw); err != nil {
+		if err := c.getJSON(ctx, apiPath, pageQuery, &raw); err != nil {
 			return nil, err
 		}
 
@@ -1043,10 +1050,7 @@ func buildDiscordPayload(period billingPeriod, reports []projectReport) discordW
 		footerText := fmt.Sprintf("%d entries omitted. See CloudWatch Logs for full run context.", omittedEntries)
 		remainingCharacters := discordEmbedTotalLimit - usedCharacters
 		if remainingCharacters > 0 {
-			footerLimit := discordEmbedFooterTextLimit
-			if remainingCharacters < footerLimit {
-				footerLimit = remainingCharacters
-			}
+			footerLimit := min(remainingCharacters, discordEmbedFooterTextLimit)
 			footerText = truncateDiscord(footerText, footerLimit)
 			if footerText != "" {
 				embed.Footer = &discordEmbedFooter{Text: footerText}
@@ -1304,21 +1308,6 @@ func envOr(name, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-func cloneValues(values url.Values) url.Values {
-	clone := url.Values{}
-	for key, value := range values {
-		clone[key] = append([]string{}, value...)
-	}
-	return clone
-}
-
-func minInt(left int, right int) int {
-	if left < right {
-		return left
-	}
-	return right
 }
 
 func resourceLabel(name string, id int64) string {

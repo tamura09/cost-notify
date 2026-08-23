@@ -488,8 +488,8 @@ func buildDiscordPayload(report weeklyReport) discordWebhookPayload {
 	}
 
 	return discordWebhookPayload{
-		Content:  truncateString(content, discordContentLimit),
-		Embeds:   []discordEmbed{embed},
+		Content: truncateString(content, discordContentLimit),
+		Embeds:  []discordEmbed{embed},
 		AllowedMentions: discordAllowedMentions{
 			Parse: []string{},
 		},
@@ -583,7 +583,6 @@ func (application *app) postDiscord(ctx context.Context, webhookURL string, payl
 		return fmt.Errorf("Discord webhook returned %s: %s", response.Status, strings.TrimSpace(string(responseBody)))
 	}
 
-	_, _ = io.Copy(io.Discard, response.Body)
 	return nil
 }
 
