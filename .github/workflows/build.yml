@@ -23,7 +23,10 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a PR run is safe to cancel. A deploy stopped between its AWS calls can
+  # leave the function half-updated (monspot's code without its new layer), so
+  # a later push or a workflow_dispatch waits for it instead.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   AWS_ACCOUNT_ID: "222165754930"
