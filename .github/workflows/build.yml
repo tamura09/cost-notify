@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+    # Nothing in these ships in the artifact, so merging a change to them only
+    # would redeploy identical code. pull_request keeps no such filter: the
+    # required Test check has to report on every PR, or a docs-only PR could
+    # never merge.
+    paths-ignore:
+      - "**.md"
+      - renovate.json
+      - .github/workflows/pr-review.yml
   pull_request:
     branches:
       - main
@@ -15,7 +23,10 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a PR run is safe to cancel. A deploy stopped between its AWS calls
+  # leaves the uploaded artifact and what is actually deployed out of step, so
+  # a later push or a workflow_dispatch waits for it instead.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   AWS_ACCOUNT_ID: "222165754930"
@@ -24,6 +35,10 @@ env:
 jobs:
   test:
     name: Test (${{ matrix.function }})
+    # Not after the merge: a change reaches main through a PR that has already
+    # run these checks, so repeating them would bill the same minutes twice.
+    # workflow_dispatch on any other branch still runs them by hand.
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -54,8 +69,10 @@ jobs:
 
   deploy:
     name: Deploy (${{ matrix.function }})
-    needs: test
-    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    # No needs: test. Test is skipped outside pull requests, and a skipped
+    # dependency would skip this job too. workflow_dispatch on main redeploys
+    # without a code change.
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -106,5 +123,5 @@ jobs:
             --function-name "${{ matrix.function }}" \
             --s3-bucket "aws-terraform-lambda-artifacts-${AWS_ACCOUNT_ID}-us-east-1" \
             --s3-key "lambda/${{ matrix.function }}.zip" \
-            --no-cli-pager
+            --query CodeSha256 --output text --no-cli-pager
           aws lambda wait function-updated --function-name "${{ matrix.function }}"

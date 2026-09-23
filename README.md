@@ -12,7 +12,7 @@ Each function is an independent Go module built for `provided.al2023` / `arm64`.
 
 ## CI/CD
 
-[.github/workflows/build.yml](.github/workflows/build.yml) tests every function on pull requests and pushes to `main`. On push to `main`, it also builds each function's `bootstrap` binary, zips it, uploads the artifact to the Lambda artifact S3 bucket that `tamura09/aws-terraform` reads from (`s3://aws-terraform-lambda-artifacts-<account_id>-us-east-1/lambda/<function>.zip`), and immediately calls `aws lambda update-function-code` so the deployed Lambda runs the new code right away.
+[.github/workflows/build.yml](.github/workflows/build.yml) tests every function on pull requests only; the `Test` checks are required, so nothing reaches `main` without passing them. On push to `main` (and on `workflow_dispatch` from `main`), it builds each function's `bootstrap` binary, zips it, uploads the artifact to the Lambda artifact S3 bucket that `tamura09/aws-terraform` reads from (`s3://aws-terraform-lambda-artifacts-<account_id>-us-east-1/lambda/<function>.zip`), and immediately calls `aws lambda update-function-code` so the deployed Lambda runs the new code right away.
 
 AWS calls authenticate via GitHub OIDC, assuming the `github-actions-lambda-artifacts` IAM role defined in `tamura09/aws-terraform` (scoped to S3 upload + `lambda:UpdateFunctionCode` on these specific functions).
 
