@@ -23,8 +23,8 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  # Only a PR run is safe to cancel. A deploy stopped between its AWS calls can
-  # leave the function half-updated (monspot's code without its new layer), so
+  # Only a PR run is safe to cancel. A deploy stopped between its AWS calls
+  # leaves the uploaded artifact and what is actually deployed out of step, so
   # a later push or a workflow_dispatch waits for it instead.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -35,10 +35,10 @@ env:
 jobs:
   test:
     name: Test (${{ matrix.function }})
-    # Pull requests only. A change reaches main through a PR that has already
-    # run these checks, so repeating them after the merge would bill the same
-    # minutes twice.
-    if: ${{ github.event_name == 'pull_request' }}
+    # Not after the merge: a change reaches main through a PR that has already
+    # run these checks, so repeating them would bill the same minutes twice.
+    # workflow_dispatch on any other branch still runs them by hand.
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
