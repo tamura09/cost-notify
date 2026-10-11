@@ -108,7 +108,7 @@ func TestBuildDiscordPayloadShowsNetWithGrossOnlyWhenDiscounted(t *testing.T) {
 		t.Fatalf("products = %q", products)
 	}
 	for _, field := range embed.Fields {
-		if field.Name == "Repositories" {
+		if field.Name == "Repositories (gross)" {
 			t.Fatalf("repositories field should be omitted without repository usage: %+v", field)
 		}
 	}
@@ -175,6 +175,9 @@ func TestHandleReportsThePreviousMonth(t *testing.T) {
 	}
 	if !strings.Contains(posted.Embeds[0].Fields[0].Value, "- actions: USD 0.00 (JPY 0) (gross USD 0.25)") {
 		t.Fatalf("products = %q", posted.Embeds[0].Fields[0].Value)
+	}
+	if got := posted.Embeds[0].Fields[2]; got.Name != "Repositories (gross)" || got.Value != "- tamura09/cost-notify: gross USD 0.25 (JPY 38)" {
+		t.Fatalf("repositories = %+v", got)
 	}
 }
 

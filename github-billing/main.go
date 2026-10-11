@@ -507,11 +507,14 @@ func buildDiscordFields(report monthlyReport) []discordEmbedField {
 
 	if len(report.Repositories) > 0 {
 		repositoryLines := make([]string, 0, min(len(report.Repositories), maxDiscordRepositoryLines))
+		// Gross only: the included quota is used up in date order, so a
+		// repository's net amount says which one happened to run after the
+		// quota ran out, not how much it costs.
 		for _, line := range report.Repositories[:min(len(report.Repositories), maxDiscordRepositoryLines)] {
-			repositoryLines = append(repositoryLines, fmt.Sprintf("- %s: %s", line.Repository, formatAmounts(line.amounts, report.JPYConversion)))
+			repositoryLines = append(repositoryLines, fmt.Sprintf("- %s: gross %s", line.Repository, formatMoneyWithJPY(line.Gross, report.JPYConversion)))
 		}
 		fields = append(fields, discordEmbedField{
-			Name:  "Repositories",
+			Name:  "Repositories (gross)",
 			Value: truncateString(linesWithOverflow(repositoryLines, len(report.Repositories)), discordEmbedFieldValueLimit),
 		})
 	}
