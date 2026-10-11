@@ -45,6 +45,7 @@ jobs:
         function:
           - aws-monthly-billing
           - aws-weekly-billing
+          - github-billing
           - hetzner-billing
     defaults:
       run:
@@ -79,6 +80,7 @@ jobs:
         function:
           - aws-monthly-billing
           - aws-weekly-billing
+          - github-billing
           - hetzner-billing
     defaults:
       run:
@@ -117,8 +119,28 @@ jobs:
           aws s3 cp "${{ matrix.function }}.zip" \
             "s3://aws-terraform-lambda-artifacts-${AWS_ACCOUNT_ID}-us-east-1/lambda/${{ matrix.function }}.zip"
 
+      # CreateFunction in tamura09/terraform reads the artifact uploaded above,
+      # so a newly added function's first push has to upload before the
+      # function can exist. Failing here would make that ordering look like a
+      # broken build, so a missing function is reported and skipped instead.
+      # Only ResourceNotFoundException is skipped: AccessDenied or throttling
+      # would otherwise skip every function and leave the old code running
+      # behind a green job.
+      #
+      # The check is get-function-configuration, not get-function: the deploy
+      # role is allowed lambda:GetFunctionConfiguration and
+      # lambda:UpdateFunctionCode only, and get-function would be AccessDenied.
       - name: Deploy Lambda function code
         run: |
+          if ! check_error=$(aws lambda get-function-configuration --function-name "${{ matrix.function }}" --no-cli-pager 2>&1 >/dev/null); then
+            if [[ "${check_error}" == *ResourceNotFoundException* ]]; then
+              echo "::notice::${{ matrix.function }} does not exist yet. The artifact is in S3; apply tamura09/terraform to create the function, then re-run this workflow."
+              exit 0
+            fi
+            echo "${check_error}" >&2
+            exit 1
+          fi
+
           aws lambda update-function-code \
             --function-name "${{ matrix.function }}" \
             --s3-bucket "aws-terraform-lambda-artifacts-${AWS_ACCOUNT_ID}-us-east-1" \
