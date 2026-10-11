@@ -1,11 +1,12 @@
 # cost-notify
 
-AWS Lambda functions for cost and billing notifications, deployed via [tamura09/aws-terraform](https://github.com/tamura09/aws-terraform).
+AWS Lambda functions for cost and billing notifications, deployed via [tamura09/terraform](https://github.com/tamura09/terraform).
 
 ## Functions
 
 - `aws-monthly-billing` — Monthly AWS resource usage and billing notification for Discord.
 - `aws-weekly-billing` — Weekly AWS resource usage and billing notification for Discord.
+- `github-billing` — Monthly GitHub metered usage and billing notification for Discord. Runs on the 1st and reports the previous UTC month from the GitHub billing usage report.
 - `hetzner-billing` — Monthly Hetzner Cloud billing estimate notification for Discord.
 
 Each function is an independent Go module built for `provided.al2023` / `arm64`.
