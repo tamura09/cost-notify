@@ -221,3 +221,18 @@ func (parameters fakeParameters) GetParameter(_ context.Context, input *ssm.GetP
 func closeAmounts(left amounts, right amounts) bool {
 	return !hasAmount(left.Gross-right.Gross) && !hasAmount(left.Discount-right.Discount) && !hasAmount(left.Net-right.Net)
 }
+
+func TestPostDiscordKeepsTheURLOutOfTransportErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	application := &app{httpClient: server.Client()}
+	webhookURL := server.URL + "/api/webhooks/1/secret-token"
+	server.Close()
+
+	err := application.postDiscord(context.Background(), webhookURL, discordWebhookPayload{})
+	if err == nil {
+		t.Fatal("postDiscord succeeded against a closed server")
+	}
+	if strings.Contains(err.Error(), "secret-token") {
+		t.Errorf("error %q contains the webhook token", err)
+	}
+}
