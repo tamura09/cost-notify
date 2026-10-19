@@ -228,3 +228,18 @@ func (fake *fakeCostExplorer) GetCostAndUsage(_ context.Context, input *costexpl
 	}
 	return fake.outputs[len(fake.inputs)-1], nil
 }
+
+func TestPostDiscordKeepsTheURLOutOfTransportErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	application := &app{httpClient: server.Client()}
+	webhookURL := server.URL + "/api/webhooks/1/secret-token"
+	server.Close()
+
+	err := application.postDiscord(context.Background(), webhookURL, discordWebhookPayload{})
+	if err == nil {
+		t.Fatal("postDiscord succeeded against a closed server")
+	}
+	if strings.Contains(err.Error(), "secret-token") {
+		t.Errorf("error %q contains the webhook token", err)
+	}
+}

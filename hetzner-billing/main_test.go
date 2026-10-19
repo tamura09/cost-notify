@@ -285,3 +285,28 @@ func TestExchangeRateFetchesFrankfurterRate(t *testing.T) {
 		t.Fatalf("conversion.Date = %q, want %q", got, want)
 	}
 }
+
+func TestPostDiscordKeepsTheURLOutOfTransportErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	application := &app{httpClient: server.Client()}
+	webhookURL := server.URL + "/api/webhooks/1/secret-token"
+	server.Close()
+
+	err := application.postDiscordWebhook(context.Background(), webhookURL, discordWebhookPayload{})
+	if err == nil {
+		t.Fatal("postDiscordWebhook succeeded against a closed server")
+	}
+	if strings.Contains(err.Error(), "secret-token") {
+		t.Errorf("error %q contains the webhook token", err)
+	}
+}
+
+func TestValidateWebhookURLKeepsTheURLOutOfParseErrors(t *testing.T) {
+	_, err := validateWebhookURL("https://discord.com/api/webhooks/1/secret-token%zz")
+	if err == nil {
+		t.Fatal("an unparsable URL was accepted")
+	}
+	if strings.Contains(err.Error(), "secret-token") {
+		t.Errorf("error %q contains the webhook token", err)
+	}
+}

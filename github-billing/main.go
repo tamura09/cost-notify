@@ -563,13 +563,13 @@ func (application *app) postDiscord(ctx context.Context, webhookURL string, payl
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("create Discord request: %w", err)
+		return fmt.Errorf("create Discord request: %w", withoutURL(err))
 	}
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := application.httpClient.Do(request)
 	if err != nil {
-		return fmt.Errorf("post Discord webhook: %w", err)
+		return fmt.Errorf("post Discord webhook: %w", withoutURL(err))
 	}
 	defer response.Body.Close()
 
@@ -582,6 +582,17 @@ func (application *app) postDiscord(ctx context.Context, webhookURL string, payl
 	}
 
 	return nil
+}
+
+// withoutURL drops the URL that net/http and net/url put into their errors. A
+// webhook URL carries its token in the path, so the error would otherwise
+// write the credential into CloudWatch Logs.
+func withoutURL(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Errorf("%s webhook: %w", urlErr.Op, urlErr.Err)
+	}
+	return err
 }
 
 func requiredEnv(name string) (string, error) {
