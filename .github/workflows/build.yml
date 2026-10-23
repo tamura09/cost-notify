@@ -39,7 +39,7 @@ jobs:
     # run these checks, so repeating them would bill the same minutes twice.
     # workflow_dispatch on any other branch still runs them by hand.
     if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-arm
     strategy:
       matrix:
         function:
@@ -74,7 +74,7 @@ jobs:
     # dependency would skip this job too. workflow_dispatch on main redeploys
     # without a code change.
     if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04-arm
     strategy:
       matrix:
         function:
